@@ -32,8 +32,8 @@ export interface AiSuggestion {
 }
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const MODELS = [process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-flash-latest'].filter(Boolean) as string[];
-const TIMEOUT_MS = 20_000;
+const MODELS = [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean) as string[];
+const TIMEOUT_MS = 15_000;
 
 export const aiEnabled = () => Boolean(API_KEY);
 
@@ -160,22 +160,45 @@ async function generate(model: string, system: string, user: string): Promise<Re
   }
 }
 
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 4;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Try the last model that worked, then the configured ones, then whatever
+ * flash models the key can see. 404 (retired model) and overload errors
+ * (429/5xx — common on the free tier) move on to the next model; auth or
+ * request errors stop immediately because another model won't fix them.
+ */
 async function callGemini(system: string, user: string): Promise<unknown> {
   const tried = new Set<string>();
   let candidates = [workingModel, ...MODELS].filter((m): m is string => !!m);
   let discovered = false;
+  let attempts = 0;
+  let lastFailure = '';
   try {
-    while (true) {
+    while (attempts < MAX_ATTEMPTS) {
       const model = candidates.find((m) => !tried.has(m));
       if (!model) {
-        if (discovered) throw new Error(`no usable Gemini model (tried ${[...tried].join(', ')})`);
+        if (discovered) break;
         discovered = true;
         candidates = await discoverModels();
         continue;
       }
       tried.add(model);
-      const res = await generate(model, system, user);
-      if (res.status === 404) continue; // model retired or not available to this key
+      attempts++;
+      let res: Response;
+      try {
+        res = await generate(model, system, user);
+      } catch (e) {
+        lastFailure = `${model}: ${(e as Error).name === 'AbortError' ? 'timeout' : (e as Error).message}`;
+        continue;
+      }
+      if (res.status === 404 || RETRYABLE.has(res.status)) {
+        lastFailure = `${model} ${res.status}: ${(await res.text()).slice(0, 200)}`;
+        if (RETRYABLE.has(res.status)) await sleep(600);
+        continue;
+      }
       if (!res.ok) throw new Error(`gemini ${model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
       const text = data.candidates?.[0]?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? '').join('') ?? '';
@@ -183,6 +206,7 @@ async function callGemini(system: string, user: string): Promise<unknown> {
       lastError = null;
       return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
     }
+    throw new Error(`no Gemini model answered (${[...tried].join(', ')}); last: ${lastFailure}`);
   } catch (e) {
     lastError = (e as Error).message;
     throw e;
