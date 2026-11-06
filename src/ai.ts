@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { db, nowIso } from './db';
 import type { CaseView } from './workflow';
 import { revenueYearLabel } from './khajna';
+import { nameSimilarity } from './checks';
 import { num, type Lang } from './i18n';
 
 export type AiKind = 'verify' | 'calculate' | 'decide:approve' | 'decide:reject' | 'decide:return';
@@ -160,25 +161,32 @@ async function generate(model: string, system: string, user: string): Promise<Re
   }
 }
 
-const RETRYABLE = new Set([429, 500, 502, 503, 504]);
-const MAX_ATTEMPTS = 4;
+const OVERLOADED = new Set([500, 502, 503, 504]);
+const MAX_ATTEMPTS = 6;
+const QUOTA_COOLDOWN_MS = 30 * 60 * 1000;
+const noQuotaUntil = new Map<string, number>();
+/** After every model has failed, use rules for a minute instead of hammering the API. */
+let pauseUntil = 0;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Try the last model that worked, then the configured ones, then whatever
- * flash models the key can see. 404 (retired model) and overload errors
- * (429/5xx — common on the free tier) move on to the next model; auth or
- * request errors stop immediately because another model won't fix them.
+ * flash models the key can see.
+ *  - 404: model retired / not offered to this key → next model
+ *  - 5xx "high demand": common on the free tier and usually brief → retry the same model with backoff, then move on
+ *  - 429 quota: this model has no (remaining) quota for the key → skip it for 30 min
+ *  - anything else (bad key, bad request) → stop; another model won't help
  */
 async function callGemini(system: string, user: string): Promise<unknown> {
   const tried = new Set<string>();
+  const failures: string[] = [];
+  const usable = (m: string) => !tried.has(m) && (noQuotaUntil.get(m) ?? 0) < Date.now();
   let candidates = [workingModel, ...MODELS].filter((m): m is string => !!m);
   let discovered = false;
   let attempts = 0;
-  let lastFailure = '';
   try {
     while (attempts < MAX_ATTEMPTS) {
-      const model = candidates.find((m) => !tried.has(m));
+      const model = candidates.find(usable);
       if (!model) {
         if (discovered) break;
         discovered = true;
@@ -186,27 +194,32 @@ async function callGemini(system: string, user: string): Promise<unknown> {
         continue;
       }
       tried.add(model);
-      attempts++;
-      let res: Response;
-      try {
-        res = await generate(model, system, user);
-      } catch (e) {
-        lastFailure = `${model}: ${(e as Error).name === 'AbortError' ? 'timeout' : (e as Error).message}`;
-        continue;
+      for (let retry = 0; retry < 3 && attempts < MAX_ATTEMPTS; retry++) {
+        attempts++;
+        let res: Response;
+        try {
+          res = await generate(model, system, user);
+        } catch (e) {
+          failures.push(`${model}: ${(e as Error).name === 'AbortError' ? 'timeout' : (e as Error).message}`);
+          break;
+        }
+        if (res.ok) {
+          const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
+          const text = data.candidates?.[0]?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? '').join('') ?? '';
+          workingModel = model;
+          lastError = null;
+          return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
+        }
+        const body = (await res.text()).slice(0, 160).replace(/\s+/g, ' ');
+        failures.push(`${model} ${res.status}`);
+        if (OVERLOADED.has(res.status)) { await sleep(800 * (retry + 1)); continue; }
+        if (res.status === 429) { noQuotaUntil.set(model, Date.now() + QUOTA_COOLDOWN_MS); if (workingModel === model) workingModel = null; break; }
+        if (res.status === 404) break;
+        throw new Error(`gemini ${model} ${res.status}: ${body}`);
       }
-      if (res.status === 404 || RETRYABLE.has(res.status)) {
-        lastFailure = `${model} ${res.status}: ${(await res.text()).slice(0, 200)}`;
-        if (RETRYABLE.has(res.status)) await sleep(600);
-        continue;
-      }
-      if (!res.ok) throw new Error(`gemini ${model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
-      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
-      const text = data.candidates?.[0]?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? '').join('') ?? '';
-      workingModel = model;
-      lastError = null;
-      return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
     }
-    throw new Error(`no Gemini model answered (${[...tried].join(', ')}); last: ${lastFailure}`);
+    pauseUntil = Date.now() + 60_000;
+    throw new Error(`no Gemini model answered: ${failures.join('; ')}`);
   } catch (e) {
     lastError = (e as Error).message;
     throw e;
@@ -256,6 +269,21 @@ function buildRuleSuggestion(v: CaseView, kind: AiKind, lang: Lang): AiSuggestio
 
   const years = dues?.years.map((y) => y.label).join(', ') ?? '';
   const total = dues?.total ?? 0;
+
+  // Pattadar has died and the applicant's father is the pattadar → probably an heir.
+  const heir = !!record && record.pattadar_status === 'deceased' &&
+    nameSimilarity(app.father_name, record.pattadar_name_as, record.pattadar_name_en) >= 0.7;
+
+  if (kind === 'verify' && heir) {
+    return {
+      source: 'rules',
+      verdict: 'proceed',
+      summary: as
+        ? `পট্টাদাৰ ${record!.pattadar_name_as} মৃত আৰু আবেদনকাৰীৰ পিতৃৰ নাম পট্টাদাৰৰ সৈতে মিলে — উত্তৰাধিকাৰী হ'ব পাৰে। খাজনা গ্ৰহণ কৰিব পাৰি, কিন্তু চক্ৰ কাৰ্যালয়ত নামজাৰীৰ পৰামৰ্শ দিয়ক।`
+        : `Pattadar ${record!.pattadar_name_en} is deceased and the applicant's father matches the pattadar — likely an heir. Khajna can be accepted; advise mutation at the Circle Office.`,
+      concerns: [as ? 'নামজাৰী (mutation) বাকী।' : 'Mutation pending.'],
+    };
+  }
 
   if (kind === 'verify') {
     const verdict = !record ? 'return' : checks.some((c) => c.status === 'fail') ? 'return' : 'proceed';
@@ -316,7 +344,7 @@ export async function suggest(v: CaseView, kind: AiKind, lang: Lang, opts: { ref
   }
 
   let result: AiSuggestion;
-  if (aiEnabled()) {
+  if (aiEnabled() && Date.now() >= pauseUntil) {
     try {
       const raw = await callGemini(systemPrompt(lang, v.app.mouza), `${TASKS[kind]}\n\nDATA:\n${JSON.stringify(ctx, null, 2)}`);
       const clean = sanitize(raw);
