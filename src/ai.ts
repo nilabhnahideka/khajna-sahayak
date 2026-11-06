@@ -33,7 +33,7 @@ export interface AiSuggestion {
 }
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const MODELS = [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean) as string[];
+const MODELS = [process.env.GEMINI_MODEL, 'gemini-3.5-flash', 'gemini-flash-latest'].filter(Boolean) as string[];
 const TIMEOUT_MS = 15_000;
 
 export const aiEnabled = () => Boolean(API_KEY);

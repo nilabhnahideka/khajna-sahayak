@@ -8,8 +8,8 @@ A Mouzadar opens the app on a phone, sees which applications need attention firs
 |---|---|---|---|
 | ![dashboard](docs/1-dashboard.png) | ![verify](docs/2-verify.png) | ![calculate](docs/3-calculate.png) | ![decide](docs/4-decide.png) |
 
-**Live demo:** `<LIVE_URL>` · **Login:** `mouzadar` / `khajna2026`
-The interface is in Assamese by default. Use the **English** button in the top bar to switch languages.
+**Live demo:** https://khajna-sahayak.onrender.com · **Login:** `mouzadar` / `khajna2026`
+The free server sleeps when idle, so the first load can take ~30 seconds. The interface is in Assamese by default. Use the **English** button in the top bar to switch languages.
 
 ---
 
@@ -74,7 +74,7 @@ Design safeguards:
 - **Auditable and cheap.** Every suggestion is stored (`ai_outputs`) with its input hash and source, and reused until the input changes. History records whether an AI draft was used in each decision.
 - **Structured output.** The model returns JSON with a fixed shape (verdict, summary, concerns, note, SMS), which is validated and length-limited before display.
 
-The model is **Google Gemini** (`gemini-2.5-flash` by default, configurable). It handles Assamese well, has a free tier suited to a pilot, and is fast enough to use on a phone.
+The model is **Google Gemini** (`gemini-3.5-flash` by default, configurable). Model names change and free-tier models are often busy, so the client retries busy models, skips models without quota, and can discover available flash models from the API; `/healthz` shows which model answered last. It handles Assamese well, has a free tier suited to a pilot, and is fast enough to use on a phone.
 
 ## 4. How I would measure impact, and why I think it will work
 

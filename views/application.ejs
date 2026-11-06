@@ -67,7 +67,7 @@
             <th scope="row"><%= t('check_' + c.key) %></th>
             <td><%= fmtCheck(c, 'a') %></td>
             <td><%= fmtCheck(c, 'r') %></td>
-            <td><span class="badge <%= c.status %>" title="<%= t(c.status) %>"><%= statusIcon[c.status] %> <%= t(c.status) %></span></td>
+            <td><span class="badge <%= c.status %>" title="<%= t(c.status) %>"><%= statusIcon[c.status] %><span class="lbl"> <%= t(c.status) %></span></span></td>
           </tr>
         <% }) %>
         </tbody>
