@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8f1d21">
+  <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= t('app_name') %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="lang-<%= lang %>">
+<% if (locals.user) { %>
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark" aria-hidden="true">খ</span>
+    <span>
+      <strong><%= t('app_name') %></strong>
+      <small><%= user.mouza %> · <%= user.name_as %></small>
+    </span>
+  </a>
+  <nav class="topnav">
+    <a class="chip" href="/lang/<%= lang === 'as' ? 'en' : 'as' %>?next=<%= encodeURIComponent(path) %>"><%= t('switch_lang') %></a>
+    <form method="post" action="/logout"><button class="chip ghost" type="submit"><%= t('logout') %></button></form>
+  </nav>
+</header>
+<% } %>
+<main class="wrap">

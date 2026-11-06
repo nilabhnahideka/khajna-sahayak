@@ -1,0 +1,24 @@
+<%# Shared form for approve / reject / return. `allowed` lists the actions offered here. %>
+<form method="post" action="/app/<%= a.id %>/act" class="decision stack" id="decision-<%= formId %>" data-decision-form>
+  <fieldset class="choices">
+    <legend><%= t('choose_action') %></legend>
+    <% allowed.forEach(function (act, i) { %>
+      <label class="choice choice-<%= act %>">
+        <input type="radio" name="action" value="<%= act %>" <%= i === 0 ? 'checked' : '' %> required>
+        <span><%= t(act) %></span>
+      </label>
+    <% }) %>
+  </fieldset>
+
+  <div class="ai" data-ai-kind="decide:<%= allowed[0] %>" data-app="<%= a.id %>" data-fill="#decision-<%= formId %>"></div>
+
+  <label><%= t('reason') %>
+    <textarea name="note" rows="3"></textarea>
+  </label>
+  <label><%= t('citizen_message') %>
+    <textarea name="message" rows="4" maxlength="400"></textarea>
+    <small class="muted" data-counter></small>
+  </label>
+  <input type="hidden" name="ai_used" value="0">
+  <button class="btn primary big" type="submit"><%= t('submit_decision') %></button>
+</form>

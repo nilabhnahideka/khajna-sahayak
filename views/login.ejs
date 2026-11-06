@@ -1,0 +1,24 @@
+<%- include('partials/head', { title: t('login') }) %>
+<section class="login">
+  <div class="login-card">
+    <div class="brand-mark big" aria-hidden="true">খ</div>
+    <h1><%= t('app_name') %></h1>
+    <p class="muted"><%= t('tagline') %></p>
+    <% if (error) { %><p class="alert fail" role="alert"><%= error %></p><% } %>
+    <form method="post" action="/login" class="stack">
+      <label><%= t('username') %>
+        <input name="username" autocomplete="username" required value="mouzadar" autocapitalize="none">
+      </label>
+      <label><%= t('password') %>
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button class="btn primary big" type="submit"><%= t('login') %></button>
+    </form>
+    <div class="demo-box">
+      <strong><%= t('demo_login') %></strong>
+      <code>mouzadar</code> / <code><%= demoPassword %></code>
+    </div>
+    <a class="chip" href="/lang/<%= lang === 'as' ? 'en' : 'as' %>?next=/login"><%= t('switch_lang') %></a>
+  </div>
+</section>
+<%- include('partials/foot') %>

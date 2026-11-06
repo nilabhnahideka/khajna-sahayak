@@ -1,0 +1,189 @@
+<%
+  const a = v.app, r = v.record, d = v.dues;
+  const steps = ['verify', 'calculate', 'decide'];
+  const open = steps.includes(a.status);
+  const stepIdx = open ? steps.indexOf(a.status) : 3;
+  const statusIcon = { ok: '✓', warn: '!', fail: '✕' };
+  const fmtCheck = function (c, side) {
+    const val = side === 'a' ? c.applicant : c.record;
+    if (c.key === 'patta_type' && side === 'r') return t(val);
+    if (c.key === 'pattadar_status' && side === 'r') return t(val);
+    return n(val);
+  };
+%>
+<%- include('partials/head', { title: a.applicant_name }) %>
+
+<a class="backlink" href="/">← <%= t('back') %></a>
+
+<header class="case-head">
+  <div>
+    <h1><%= a.applicant_name %></h1>
+    <p class="muted mono"><%= a.app_no %> · <%= t(a.channel) %></p>
+  </div>
+  <span class="pill step-<%= a.status %>"><%= t('status_' + a.status) %></span>
+</header>
+
+<% if (err) { %><p class="alert fail" role="alert" id="action"><%= t('err_' + err) %></p><% } %>
+
+<ol class="stepper" aria-label="<%= t('step_of') %>">
+  <% steps.forEach(function (s, i) { %>
+    <li class="<%= i < stepIdx ? 'done' : i === stepIdx ? 'current' : '' %>" <%- i === stepIdx ? 'aria-current="step"' : '' %>>
+      <span class="dot"><%= i < stepIdx ? '✓' : n(i + 1) %></span>
+      <span class="label"><%= t('status_' + s).replace(/^\S+\s/, '') %></span>
+    </li>
+  <% }) %>
+</ol>
+
+<section class="card details">
+  <dl class="grid">
+    <div><dt><%= t('applicant') %></dt><dd><%= a.applicant_name %></dd></div>
+    <div><dt><%= t('father_name') %></dt><dd><%= a.father_name %></dd></div>
+    <div><dt><%= t('village') %></dt><dd><%= a.village %></dd></div>
+    <div><dt><%= t('patta_no') %> / <%= t('dag_no') %></dt><dd><%= n(a.patta_no) %> / <%= n(a.dag_no) %></dd></div>
+    <div><dt><%= t('area') %> <small>(<%= t('bkl') %>)</small></dt><dd><%= n(a.claimed_bigha + '-' + a.claimed_katha + '-' + a.claimed_lessa) %></dd></div>
+    <div><dt><%= t('phone') %></dt><dd><a href="tel:<%= a.phone %>"><%= n(a.phone) %></a></dd></div>
+    <div><dt><%= t('submitted_on') %></dt><dd><%= date(a.submitted_at) %> <span class="muted">(<%= n(v.ageDays) %> <%= t('days_waiting') %>)</span></dd></div>
+  </dl>
+</section>
+
+<section id="step">
+<% if (a.status === 'verify') { %>
+  <div class="card step-card">
+    <h2><span class="step-no"><%= n(1) %></span> <%= t('verify_title') %></h2>
+    <p class="muted"><%= t('verify_help') %></p>
+
+    <% if (!r) { %>
+      <p class="alert fail"><%= t('record_not_found') %></p>
+      <% if (v.otherDags.length) { %>
+        <p><%= t('patta_no') %> <%= n(a.patta_no) %> → <%= t('dag_no') %>: <strong><%= n(v.otherDags.join(', ')) %></strong></p>
+      <% } %>
+    <% } else { %>
+      <div class="table-scroll">
+      <table class="checks">
+        <thead><tr><th><%= t('col_check') %></th><th><%= t('col_applicant') %></th><th><%= t('col_record') %></th><th></th></tr></thead>
+        <tbody>
+        <% v.checks.forEach(function (c) { %>
+          <tr class="<%= c.status %>">
+            <th scope="row"><%= t('check_' + c.key) %></th>
+            <td><%= fmtCheck(c, 'a') %></td>
+            <td><%= fmtCheck(c, 'r') %></td>
+            <td><span class="badge <%= c.status %>" title="<%= t(c.status) %>"><%= statusIcon[c.status] %> <%= t(c.status) %></span></td>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+      </div>
+    <% } %>
+
+    <div class="ai" data-ai-kind="verify" data-app="<%= a.id %>"></div>
+
+    <% if (r) { %>
+    <form method="post" action="/app/<%= a.id %>/act" class="stack">
+      <input type="hidden" name="action" value="complete">
+      <label class="confirm"><input type="checkbox" required> <%= t('confirm_verified') %></label>
+      <button class="btn primary big" type="submit"><%= t('verify_next') %> →</button>
+    </form>
+    <% } %>
+  </div>
+<% } else if (a.status === 'calculate' && d) { %>
+  <div class="card step-card">
+    <h2><span class="step-no"><%= n(2) %></span> <%= t('calc_title') %></h2>
+    <p class="muted"><%= t('calc_help') %></p>
+
+    <dl class="grid compact">
+      <div><dt><%= t('land_class') %></dt><dd><%= t('class_' + r.land_class) %></dd></div>
+      <div><dt><%= t('area') %></dt><dd><%= n(r.bigha + '-' + r.katha + '-' + r.lessa) %> <small class="muted">(<%= n(d.areaBigha.toFixed(2)) %>)</small></dd></div>
+      <div><dt><%= t('rate') %></dt><dd>₹<%= n(d.rate) %> <small class="muted">*</small></dd></div>
+    </dl>
+
+    <form method="post" action="/app/<%= a.id %>/act" class="inline-form" data-autosubmit>
+      <input type="hidden" name="action" value="set_last_paid">
+      <label><%= t('last_paid') %>
+        <select name="last_paid">
+          <% const lp = a.last_paid_override ?? r.last_paid_year; %>
+          <option value="none" <%= lp === null ? 'selected' : '' %>><%= t('never_paid') %></option>
+          <% yearOptions.forEach(function (y) { if (y < r.settled_year) return; %>
+            <option value="<%= y %>" <%= lp === y ? 'selected' : '' %>><%= ry(y) %></option>
+          <% }) %>
+        </select>
+      </label>
+      <small class="muted"><%= t('override_hint') %></small>
+      <noscript><button class="btn" type="submit"><%= t('recalculate') %></button></noscript>
+    </form>
+
+    <% if (d.flags.length) { %>
+      <ul class="flags">
+        <% d.flags.forEach(function (f) { %><li class="alert <%= f === 'nothing_due' ? 'fail' : 'warn' %>"><%= t('flag_' + f) %></li><% }) %>
+      </ul>
+    <% } %>
+
+    <% if (d.years.length) { %>
+    <div class="table-scroll">
+    <table class="dues">
+      <thead><tr><th><%= t('revenue_year') %></th><th class="num"><%= t('amount') %></th></tr></thead>
+      <tbody>
+        <% d.years.forEach(function (y) { %><tr><td><%= ry(y.year) %></td><td class="num">₹<%= n(y.amount) %></td></tr><% }) %>
+      </tbody>
+      <tfoot><tr><th><%= t('total') %> (<%= n(d.unpaidCount) %> <%= t('unpaid_years') %>)</th><th class="num total">₹<%= n(d.total) %></th></tr></tfoot>
+    </table>
+    </div>
+    <% } %>
+    <p class="muted small">* <%= t('sample_rates') %></p>
+
+    <div class="ai" data-ai-kind="calculate" data-app="<%= a.id %>"></div>
+
+    <div class="btn-row">
+      <form method="post" action="/app/<%= a.id %>/act"><input type="hidden" name="action" value="back"><button class="btn" type="submit">← <%= t('send_back') %></button></form>
+      <form method="post" action="/app/<%= a.id %>/act" class="grow"><input type="hidden" name="action" value="complete"><button class="btn primary big" type="submit"><%= t('calc_next') %> →</button></form>
+    </div>
+  </div>
+<% } else if (a.status === 'decide') { %>
+  <div class="card step-card">
+    <h2><span class="step-no"><%= n(3) %></span> <%= t('decide_title') %></h2>
+    <p class="muted"><%= t('decide_help') %></p>
+    <div class="amount-box">
+      <span><%= t('amount_payable') %></span>
+      <strong>₹<%= n(a.dues_total ?? 0) %></strong>
+      <small><%= n(a.dues_years ?? 0) %> <%= t('unpaid_years') %></small>
+    </div>
+    <%- include('partials/decision-form', { a, formId: 'final', allowed: (a.dues_total ? ['approve', 'return', 'reject'] : ['return', 'reject']) }) %>
+    <form method="post" action="/app/<%= a.id %>/act"><input type="hidden" name="action" value="back"><button class="btn" type="submit">← <%= t('send_back') %></button></form>
+  </div>
+<% } else { %>
+  <div class="card final final-<%= a.status %>">
+    <h2><%= t('status_' + a.status) %></h2>
+    <p class="muted"><%= t('final_state') %></p>
+    <% if (a.dues_total && a.status === 'approved') { %>
+      <div class="amount-box"><span><%= t('amount_payable') %></span><strong>₹<%= n(a.dues_total) %></strong><small><%= t('receipt_no') %>: <span class="mono"><%= a.receipt_no %></span></small></div>
+    <% } %>
+    <% if (a.decision_note) { %><h3><%= t('reason') %></h3><p><%= a.decision_note %></p><% } %>
+    <% if (a.citizen_message) { %><h3><%= t('citizen_message') %></h3><p class="sms"><%= a.citizen_message %></p><% } %>
+    <button class="btn" type="button" onclick="window.print()"><%= t('print') %></button>
+  </div>
+<% } %>
+
+<% if (a.status === 'verify' || a.status === 'calculate') { %>
+  <details class="card side-exit" <%= !r ? 'open' : '' %>>
+    <summary><%= t('return') %> / <%= t('reject') %> <small class="muted">— <%= t('return_or_reject_anytime') %></small></summary>
+    <%- include('partials/decision-form', { a, formId: 'exit', allowed: ['return', 'reject'] }) %>
+  </details>
+<% } %>
+</section>
+
+<section class="card">
+  <h2><%= t('history') %></h2>
+  <ol class="timeline">
+    <% events.slice().reverse().forEach(function (e) { %>
+      <li class="ev ev-<%= e.action %>">
+        <div class="ev-head">
+          <strong><%= t('ev_' + e.action) %></strong>
+          <% if (e.ai_used) { %><span class="tag ai-tag"><%= t('ai_was_used') %></span><% } %>
+        </div>
+        <div class="muted small"><%= date(e.at) %> · <%= t('by') %>: <%= e.actor === 'citizen' ? t('citizen') : e.actor === 'system' ? t('system') : e.actor %></div>
+        <% if (e.note) { %><p class="ev-note"><%= n(e.note) %></p><% } %>
+      </li>
+    <% }) %>
+  </ol>
+</section>
+
+<%- include('partials/foot') %>

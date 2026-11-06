@@ -1,0 +1,60 @@
+<%- include('partials/head', { title: t('todays_work') }) %>
+
+<h1 class="page-title"><%= t('todays_work') %></h1>
+
+<section class="stats" aria-label="<%= t('todays_work') %>">
+  <div class="stat"><span class="stat-n"><%= n(stats.pending) %></span><span><%= t('pending_total') %></span></div>
+  <div class="stat fail"><span class="stat-n"><%= n(stats.overdue) %></span><span><%= t('overdue') %></span></div>
+  <div class="stat warn"><span class="stat-n"><%= n(stats.dueSoon) %></span><span><%= t('due_soon') %></span></div>
+  <div class="stat ok"><span class="stat-n"><%= n(stats.doneToday) %></span><span><%= t('done_today') %></span></div>
+</section>
+
+<form class="search" method="get" action="/" role="search">
+  <input type="search" name="q" value="<%= q %>" placeholder="<%= t('search_placeholder') %>" aria-label="<%= t('search_placeholder') %>">
+</form>
+
+<h2 class="section-title"><%= t('attention_first') %></h2>
+<% if (!items.length) { %>
+  <p class="card center muted"><%= t('no_pending') %></p>
+<% } %>
+<ol class="queue">
+<% items.forEach(function (it) { const a = it.app; %>
+  <li>
+    <a class="qcard <%= it.daysLeft < 0 ? 'is-overdue' : '' %>" href="/app/<%= a.id %>">
+      <div class="qrow">
+        <strong class="qname"><%= a.applicant_name %></strong>
+        <span class="pill step-<%= a.status %>"><%= t('status_' + a.status) %></span>
+      </div>
+      <div class="qmeta">
+        <span><%= a.village %></span>
+        <span><%= t('patta_no') %> <%= n(a.patta_no) %> · <%= t('dag_no') %> <%= n(a.dag_no) %></span>
+        <span class="mono"><%= a.app_no %></span>
+        <% if (a.channel === 'offline') { %><span class="tag"><%= t('offline') %></span><% } %>
+      </div>
+      <div class="qrow">
+        <span class="due <%= it.daysLeft < 0 ? 'fail' : it.daysLeft <= 1 ? 'warn' : '' %>">
+          <%= n(it.ageDays) %> <%= t('days_waiting') %>
+          <% if (it.daysLeft >= 0) { %> · <%= n(it.daysLeft) %> <%= t('days_left') %><% } %>
+        </span>
+        <span class="reasons">
+          <% it.reasons.forEach(function (r) { %><span class="tag <%= r === 'reason_overdue' ? 'fail' : 'warn' %>"><%= t(r) %></span><% }) %>
+        </span>
+      </div>
+    </a>
+  </li>
+<% }) %>
+</ol>
+
+<% if (done.length) { %>
+<h2 class="section-title"><%= t('completed') %></h2>
+<ul class="done-list">
+  <% done.forEach(function (a) { %>
+  <li><a href="/app/<%= a.id %>">
+    <span><%= a.applicant_name %> <small class="muted mono"><%= a.app_no %></small></span>
+    <span class="pill step-<%= a.status %>"><%= t('status_' + a.status) %></span>
+  </a></li>
+  <% }) %>
+</ul>
+<% } %>
+
+<%- include('partials/foot') %>

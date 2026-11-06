@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: khajna-sahayak
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DEMO_PASSWORD
+        value: khajna2026
+      - key: GEMINI_API_KEY
+        sync: false
