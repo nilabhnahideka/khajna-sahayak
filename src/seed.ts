@@ -10,7 +10,7 @@ import { db, SCHEMA } from './db';
 import { hashPassword } from './auth';
 import { calculateDues, type LandClass } from './khajna';
 
-const MOUZA = 'বৰখেত্ৰী মৌজা';
+const MOUZA = 'পাকা মৌজা';
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (days: number, hours = 0) => new Date(Date.now() - days * DAY - hours * 3600_000).toISOString();
 
@@ -73,9 +73,9 @@ const apps: A[] = [
   { name: 'নয়নমণি বৰা', father: 'দিলীপ বৰা', phone: '9864778899', village: 'নতুনগাঁও', patta: '55', dag: '204', b: 1, k: 1, l: 0, channel: 'online', daysAgo: 6, status: 'calculate' },
   { name: 'সুৰেশ পাঠক', father: 'কেশৱ পাঠক', phone: '9435667788', village: 'পানীগাঁও', patta: '81', dag: '345', b: 4, k: 0, l: 0, channel: 'offline', daysAgo: 5, status: 'decide' },
   // Finished — to show history.
-  { name: 'মামণি তালুকদাৰ', father: 'ভূপেন তালুকদাৰ', phone: '9101998877', village: 'বৰবাৰী', patta: '29', dag: '95', b: 1, k: 0, l: 0, channel: 'online', daysAgo: 10, status: 'approved', note: 'জমাবন্দীৰ সৈতে সকলো তথ্য মিলিছে।', message: 'নমস্কাৰ মামণি তালুকদাৰ, আপোনাৰ খাজনা আবেদন অনুমোদিত হৈছে। ৰাজহ বৰ্ষ ২০২৫-২৬ আৰু ২০২৬-২৭ ৰ বাবে মুঠ ৫০ টকা সেৱা সেতু পৰ্টেলত পৰিশোধ কৰক। — মৌজাদাৰ, বৰখেত্ৰী মৌজা' },
-  { name: 'লক্ষ্মী কাকতি', father: 'বিপিন কাকতি', phone: '9957334455', village: 'চেঁচামুখ', patta: '40', dag: '210', b: 0, k: 2, l: 0, channel: 'online', daysAgo: 9, status: 'returned', note: 'দাগ নং ভুল। জমাবন্দী অনুসৰি পট্টা ৪০ ৰ দাগ নং ১২০।', message: 'নমস্কাৰ লক্ষ্মী কাকতি, আপোনাৰ আবেদনত দাগ নম্বৰ ভুল আছে (২১০)। পট্টা ৪০ ৰ দাগ নম্বৰ ১২০। অনুগ্ৰহ কৰি শুদ্ধ কৰি পুনৰ জমা দিয়ক। — মৌজাদাৰ, বৰখেত্ৰী মৌজা' },
-  { name: 'ৰাজু আলী', father: 'চফিকুল আলী', phone: '6001445566', village: 'বৰবাৰী', patta: '999', dag: '1', b: 5, k: 0, l: 0, channel: 'online', daysAgo: 11, status: 'rejected', note: 'এই মৌজাত পট্টা ৯৯৯ নাই। অন্য মৌজাৰ মাটি হ\'ব পাৰে।', message: 'নমস্কাৰ ৰাজু আলী, পট্টা ৯৯৯ বৰখেত্ৰী মৌজাৰ জমাবন্দীত নাই, সেয়ে আবেদন নাকচ কৰা হ\'ল। আপোনাৰ মাটি যি মৌজাত আছে, সেই মৌজাত আবেদন কৰক। — মৌজাদাৰ, বৰখেত্ৰী মৌজা' },
+  { name: 'মামণি তালুকদাৰ', father: 'ভূপেন তালুকদাৰ', phone: '9101998877', village: 'বৰবাৰী', patta: '29', dag: '95', b: 1, k: 0, l: 0, channel: 'online', daysAgo: 10, status: 'approved', note: 'জমাবন্দীৰ সৈতে সকলো তথ্য মিলিছে।', message: 'নমস্কাৰ মামণি তালুকদাৰ, আপোনাৰ খাজনা আবেদন অনুমোদিত হৈছে। ৰাজহ বৰ্ষ ২০২৫-২৬ আৰু ২০২৬-২৭ ৰ বাবে মুঠ ৫০ টকা সেৱা সেতু পৰ্টেলত পৰিশোধ কৰক। — মৌজাদাৰ, পাকা মৌজা' },
+  { name: 'লক্ষ্মী কাকতি', father: 'বিপিন কাকতি', phone: '9957334455', village: 'চেঁচামুখ', patta: '40', dag: '210', b: 0, k: 2, l: 0, channel: 'online', daysAgo: 9, status: 'returned', note: 'দাগ নং ভুল। জমাবন্দী অনুসৰি পট্টা ৪০ ৰ দাগ নং ১২০।', message: 'নমস্কাৰ লক্ষ্মী কাকতি, আপোনাৰ আবেদনত দাগ নম্বৰ ভুল আছে (২১০)। পট্টা ৪০ ৰ দাগ নম্বৰ ১২০। অনুগ্ৰহ কৰি শুদ্ধ কৰি পুনৰ জমা দিয়ক। — মৌজাদাৰ, পাকা মৌজা' },
+  { name: 'ৰাজু আলী', father: 'চফিকুল আলী', phone: '6001445566', village: 'বৰবাৰী', patta: '999', dag: '1', b: 5, k: 0, l: 0, channel: 'online', daysAgo: 11, status: 'rejected', note: 'এই মৌজাত পট্টা ৯৯৯ নাই। অন্য মৌজাৰ মাটি হ\'ব পাৰে।', message: 'নমস্কাৰ ৰাজু আলী, পট্টা ৯৯৯ পাকা মৌজাৰ জমাবন্দীত নাই, সেয়ে আবেদন নাকচ কৰা হ\'ল। আপোনাৰ মাটি যি মৌজাত আছে, সেই মৌজাত আবেদন কৰক। — মৌজাদাৰ, পাকা মৌজা' },
 ];
 
 export function seed(reset = false) {
@@ -86,7 +86,7 @@ export function seed(reset = false) {
 
   const tx = db.transaction(() => {
     const insUser = db.prepare('INSERT INTO users (username, password_hash, name_as, role, mouza) VALUES (?,?,?,?,?)');
-    insUser.run('mouzadar', hashPassword(process.env.DEMO_PASSWORD ?? 'khajna2026'), 'ৰমেন বৰা', 'mouzadar', MOUZA);
+    insUser.run('mouzadar', hashPassword(process.env.DEMO_PASSWORD ?? 'khajna2026'), 'নীলাভ ডেকা', 'mouzadar', MOUZA);
 
     const insRec = db.prepare(`INSERT INTO land_records
       (mouza, village, patta_no, patta_type, dag_no, pattadar_name_as, pattadar_name_en, father_name_as, father_name_en,
