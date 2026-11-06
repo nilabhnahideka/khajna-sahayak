@@ -112,37 +112,81 @@ Respond with JSON only.`;
 
 // ------------------------------------------------------------------ gemini
 
-async function callGemini(system: string, user: string): Promise<unknown> {
-  let lastErr: unknown;
-  for (const model of MODELS) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    try {
-      // Key passed as a query parameter: works for both classic (AIza…) and newer key formats.
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(API_KEY!)}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: 'user', parts: [{ text: user }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-        }),
-      });
-      if (res.status === 404) { lastErr = new Error(`model ${model} not found`); continue; }
-      if (!res.ok) throw new Error(`gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-      const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-      return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
-    } catch (e) {
-      lastErr = e;
-      if ((e as Error).message?.startsWith('gemini 4')) break; // auth/quota: other models won't help
-    } finally {
-      clearTimeout(t);
-    }
+const BASE = 'https://generativelanguage.googleapis.com/v1beta';
+let workingModel: string | null = null;
+let lastError: string | null = null;
+
+/** For /healthz: is AI configured, which model answered last, and the last error (never the key). */
+export const aiStatus = () => ({ enabled: aiEnabled(), model: workingModel, lastError });
+
+/**
+ * Model names change over time. If none of the configured models exist for
+ * this key, ask the API which "flash" models it offers and use the newest
+ * stable one.
+ */
+async function discoverModels(): Promise<string[]> {
+  const res = await fetch(`${BASE}/models?pageSize=200&key=${encodeURIComponent(API_KEY!)}`);
+  if (!res.ok) throw new Error(`list models ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = (await res.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+  const version = (n: string) => Number(n.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? 0);
+  return (data.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+    .map((m) => m.name.replace(/^models\//, ''))
+    .filter((n) => n.includes('flash') && !/(image|tts|audio|live|embed|thinking-exp)/.test(n))
+    .sort((a, b) => {
+      const score = (n: string) => version(n) * 10 - (n.includes('preview') || n.includes('exp') ? 5 : 0) - (n.includes('lite') ? 1 : 0);
+      return score(b) - score(a);
+    })
+    .slice(0, 4);
+}
+
+async function generate(model: string, system: string, user: string): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    // Key passed as a query parameter: works for both classic (AIza…) and newer key formats.
+    return await fetch(`${BASE}/models/${model}:generateContent?key=${encodeURIComponent(API_KEY!)}`, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
+      }),
+    });
+  } finally {
+    clearTimeout(t);
   }
-  throw lastErr;
+}
+
+async function callGemini(system: string, user: string): Promise<unknown> {
+  const tried = new Set<string>();
+  let candidates = [workingModel, ...MODELS].filter((m): m is string => !!m);
+  let discovered = false;
+  try {
+    while (true) {
+      const model = candidates.find((m) => !tried.has(m));
+      if (!model) {
+        if (discovered) throw new Error(`no usable Gemini model (tried ${[...tried].join(', ')})`);
+        discovered = true;
+        candidates = await discoverModels();
+        continue;
+      }
+      tried.add(model);
+      const res = await generate(model, system, user);
+      if (res.status === 404) continue; // model retired or not available to this key
+      if (!res.ok) throw new Error(`gemini ${model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
+      const text = data.candidates?.[0]?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? '').join('') ?? '';
+      workingModel = model;
+      lastError = null;
+      return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
+    }
+  } catch (e) {
+    lastError = (e as Error).message;
+    throw e;
+  }
 }
 
 function sanitize(raw: unknown): Omit<AiSuggestion, 'source'> | null {

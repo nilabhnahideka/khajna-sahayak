@@ -7,7 +7,7 @@ import { seed } from './seed';
 import { login, logout, requireUser, verifyPassword } from './auth';
 import { translator, num, type Lang } from './i18n';
 import { act, caseView, disposed, disposedTodayCount, getApp, getEvents, queue, SLA_DAYS, WorkflowError, type Action } from './workflow';
-import { suggest, aiEnabled, type AiKind } from './ai';
+import { suggest, aiEnabled, aiStatus, type AiKind } from './ai';
 import { revenueYearLabel, RATES_PER_BIGHA } from './khajna';
 
 if (isEmpty()) {
@@ -40,7 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/healthz', (_req, res) => res.json({ ok: true, ai: aiEnabled() }));
+app.get('/healthz', (_req, res) => res.json({ ok: true, ai: aiStatus() }));
 
 app.get('/lang/:l', (req, res) => {
   res.cookie('lang', req.params.l === 'en' ? 'en' : 'as', { maxAge: 365 * 86_400_000, sameSite: 'lax' });
